@@ -10,28 +10,53 @@
 
 @interface ActiveSupportInflectorRule : NSObject
 {
-  NSString* rule;
-  NSString* replacement;
+  NSString *rule;
+  NSString *replacement;
+  NSRegularExpression *regex;
 }
 
-@property (retain) NSString* rule;
-@property (retain) NSString* replacement;
+@property (nonatomic, copy) NSString *rule, *replacement;
+@property (nonatomic, retain, readonly) NSRegularExpression *regex;
 
 + (ActiveSupportInflectorRule*) rule:(NSString*)rule replacement:(NSString*)replacement;
 
 @end
 
 @implementation ActiveSupportInflectorRule
-  @synthesize rule;
-  @synthesize replacement;
+
+@synthesize rule, replacement, regex;
+
+- (void)setRule:(NSString *)newRule
+{
+  NSParameterAssert(newRule != NULL);
+  if(rule  != NULL) { [rule autorelease]; rule  = NULL; }
+  if(regex != NULL) { [regex release];    regex = NULL; }
+  if((rule = [newRule copy]) != NULL) {
+    NSError *error = NULL;
+    if((regex = [[NSRegularExpression alloc] initWithPattern:rule options:0 error:&error]) == NULL) {
+      NSLog(@"<%@:%p %@>: Unable to create a regular expression using the rule '%@': Error: %@, userInfo: %@", NSStringFromClass([self class]), self, NSStringFromSelector(_cmd), rule, error, [error userInfo]);
+      [rule release]; rule = NULL;
+    }
+  }
+  NSParameterAssert((rule != NULL) && (regex != NULL));
+}
 
 + (ActiveSupportInflectorRule*) rule:(NSString*)rule replacement:(NSString*)replacement {
-  ActiveSupportInflectorRule* result;
-  if ((result = [[[self alloc] init] autorelease])) {
+  NSParameterAssert((rule != NULL) && (replacement != NULL));
+  ActiveSupportInflectorRule *result = NULL;
+  if((result = [[[self alloc] init] autorelease])) {
     [result setRule:rule];
     [result setReplacement:replacement];
   }
-  return result;
+  return(result);
+}
+
+- (void)dealloc
+{
+  if(rule        != NULL) { [rule        release]; rule        = NULL; }
+  if(replacement != NULL) { [replacement release]; replacement = NULL; }
+  if(regex       != NULL) { [regex       release]; regex       = NULL; }
+  [super dealloc];
 }
 
 @end
@@ -43,12 +68,20 @@
 
 @implementation ActiveSupportInflector
 
+static id _activeSupportInflectorBundlePlist = NULL;
+
++ (id)activeSupportInflectorBundlePlist
+{
+  _AtomicallyInitObjCPointer(&_activeSupportInflectorBundlePlist, [NSDictionary dictionaryWithContentsOfFile:[[NSBundle bundleForClass:[self class]] pathForResource:@"ActiveSupportInflector" ofType:@"plist"]], NULL);
+  return(_activeSupportInflectorBundlePlist);
+}
+
 - (ActiveSupportInflector*)init {
   if ((self = [super init])) {
-    uncountableWords = [[NSMutableSet alloc] init];
-    pluralRules = [[NSMutableArray alloc] init];
-    singularRules = [[NSMutableArray alloc] init];
-    [self addInflectionsFromFile:[[NSBundle bundleForClass:[self class]] pathForResource:@"ActiveSupportInflector" ofType:@"plist"]];
+    uncountableWords = [[NSMutableSet   alloc] init];
+    pluralRules      = [[NSMutableArray alloc] init];
+    singularRules    = [[NSMutableArray alloc] init];
+    [self addInflectionsFromDictionary:[[self class] activeSupportInflectorBundlePlist]];
   } 
   return self; 
 }
@@ -104,27 +137,17 @@
 }
 
 - (NSString*)_applyInflectorRules:(NSArray*)rules toString:(NSString*)string {
-  if ([uncountableWords containsObject:string]) {
-    return string;
-  }
-  else {
-    for (ActiveSupportInflectorRule* rule in rules) {
-      NSRange range = NSMakeRange(0, [string length]);
-      NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:[rule rule] options:0 error:nil];
-      if ([regex firstMatchInString:string options:0 range:range]) {
-        // NSLog(@"rule: %@, replacement: %@", [rule rule], [rule replacement]);
-        return [regex stringByReplacingMatchesInString:string options:0 range:range withTemplate:[rule replacement]];
-      }
-    }
-    return string;
-  }  
+  if([uncountableWords containsObject:string]) { return(string); }
+  NSRange range = NSMakeRange(0UL, [string length]);
+  for(ActiveSupportInflectorRule *rule in rules) { if([rule.regex firstMatchInString:string options:0 range:range]) { return([rule.regex stringByReplacingMatchesInString:string options:0 range:range withTemplate:rule.replacement]); } }
+  return(string);
 }
 
 - (void)dealloc {
+  if(uncountableWords != NULL) { [uncountableWords release]; uncountableWords = NULL; }
+  if(pluralRules      != NULL) { [pluralRules      release]; pluralRules      = NULL; }
+  if(singularRules    != NULL) { [singularRules    release]; singularRules    = NULL; }
   [super dealloc];
-  [uncountableWords release];
-  [pluralRules release];
-  [singularRules release];
 }
 
 @end
