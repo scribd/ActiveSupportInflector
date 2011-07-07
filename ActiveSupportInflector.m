@@ -69,7 +69,7 @@ static id _activeSupportInflectorBundlePlist = NULL;
 
 + (id)activeSupportInflectorBundlePlist
 {
-  _AtomicallyInitObjCPointer(&_activeSupportInflectorBundlePlist, [NSDictionary dictionaryWithContentsOfFile:[[NSBundle bundleForClass:[self class]] pathForResource:@"ActiveSupportInflector" ofType:@"plist"]], NULL);
+  _AtomicallyInitObjCPointer(&_activeSupportInflectorBundlePlist, [[NSDictionary alloc] initWithContentsOfFile:[[NSBundle bundleForClass:[self class]] pathForResource:@"ActiveSupportInflector" ofType:@"plist"]], NULL);
   return(_activeSupportInflectorBundlePlist);
 }
 
